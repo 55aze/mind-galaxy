@@ -1,17 +1,15 @@
 export interface ThoughtNode {
   id: string;
   content: string;
-  
-  // Physics State
+
+  // Physics State (2D)
   x: number;
   y: number;
-  z: number;
   vx: number; // Velocity X
   vy: number; // Velocity Y
-  vz: number; // Velocity Z
   mass: number;
 
-  connections: string[]; // The Rhizome Links
+  connections: { [id: string]: number }; // Weighted connections (id -> strength 0-1)
   color: string; // Vibe Color
   gradient: string; // CSS Gradient
   createdAt: number;
@@ -40,7 +38,5 @@ export interface GroupSummary {
 export interface ViewState {
   x: number;
   y: number;
-  z: number;
-  rotationX: number;
-  rotationY: number;
+  zoom: number;
 }

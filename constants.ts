@@ -56,20 +56,130 @@ export const getRandomMindfulColor = () => {
     return PALETTE[Math.floor(Math.random() * PALETTE.length)];
 };
 
-// --- PHYSICS CONSTANTS (TUNED FOR ORGANIC CLUSTERING) ---
+// --- PHYSICS CONSTANTS (TUNED FOR 2D OBSIDIAN-STYLE GRAPH WITH CLUSTERING) ---
 export const DEFAULT_PHYSICS = {
-    // High repulsion ensures nodes don't overlap, creating volume
-    REPULSION: 800,      
-    // Short springs within clusters pull them tight
-    SPRING_LENGTH: 50,   
-    // High stiffness makes connections rigid, forming solid structures
-    STIFFNESS: 0.15,      
-    // Friction to stop the drift (0.85 = slippery, 0.5 = thick mud)
-    // We use 0.90 to allow movement but eventually settle.
-    DAMPING: 0.85,        
-    // A weak center pull keeps the galaxy from drifting off screen
-    CENTER_GRAVITY: 0.0001 
+    // Higher repulsion for larger nodes to prevent overlap
+    REPULSION: 50000,
+    // Shorter springs for tighter clustering (weight multiplies this)
+    SPRING_LENGTH: 120,
+    // Higher stiffness for strong clustering
+    STIFFNESS: 0.12,
+    // High damping for quick settling (closer to 1 = more friction)
+    DAMPING: 0.92,
+    // Minimal center pull to prevent drift
+    CENTER_GRAVITY: 0.0001
 };
 
-// Start from Zero
-export const INITIAL_THOUGHTS: ThoughtNode[] = [];
+// Start with 10 varied fleeting thoughts (2D layout with weighted connections)
+export const INITIAL_THOUGHTS: ThoughtNode[] = [
+    {
+        id: "1",
+        content: "I need to call mom this weekend",
+        x: 0, y: 0,
+        vx: 0, vy: 0,
+        mass: 1,
+        color: "#e2e8f0",
+        gradient: "linear-gradient(135deg, #e2e8f0, #e2e8f0)",
+        connections: { "2": 0.4, "6": 0.9 }, // Weak to creativity, strong to nostalgia
+        createdAt: Date.now() - 9000
+    },
+    {
+        id: "2",
+        content: "Why do I always feel more creative at night?",
+        x: 180, y: -120,
+        vx: 0, vy: 0,
+        mass: 1,
+        color: "#cbd5e1",
+        gradient: "linear-gradient(135deg, #cbd5e1, #cbd5e1)",
+        connections: { "1": 0.4, "4": 0.85, "5": 0.75 }, // Strong to music/aesthetic
+        createdAt: Date.now() - 8000
+    },
+    {
+        id: "3",
+        content: "Coffee tastes better when you make it slowly",
+        x: -200, y: 160,
+        vx: 0, vy: 0,
+        mass: 1,
+        color: "#f1f5f9",
+        gradient: "linear-gradient(135deg, #f1f5f9, #f1f5f9)",
+        connections: { "5": 0.7 }, // Moderate to aesthetic observation
+        createdAt: Date.now() - 7000
+    },
+    {
+        id: "4",
+        content: "Should I learn guitar or stick with piano?",
+        x: -160, y: 320,
+        vx: 0, vy: 0,
+        mass: 1,
+        color: "#e0f2fe",
+        gradient: "linear-gradient(135deg, #e0f2fe, #e0f2fe)",
+        connections: { "2": 0.85, "5": 0.65 }, // Strong to creativity
+        createdAt: Date.now() - 6000
+    },
+    {
+        id: "5",
+        content: "The way light hits the trees in autumn is magical",
+        x: 120, y: 200,
+        vx: 0, vy: 0,
+        mass: 1,
+        color: "#f0f9ff",
+        gradient: "linear-gradient(135deg, #f0f9ff, #f0f9ff)",
+        connections: { "2": 0.75, "3": 0.7, "4": 0.65, "9": 0.95 }, // Hub of aesthetic cluster
+        createdAt: Date.now() - 5000
+    },
+    {
+        id: "6",
+        content: "I wonder if my old friends from college still think about me",
+        x: 240, y: -240,
+        vx: 0, vy: 0,
+        mass: 1,
+        color: "#e2e8f0",
+        gradient: "linear-gradient(135deg, #e2e8f0, #e2e8f0)",
+        connections: { "1": 0.9, "9": 0.85, "10": 0.5 }, // Strong nostalgia cluster
+        createdAt: Date.now() - 4000
+    },
+    {
+        id: "7",
+        content: "Need to fix that leaky faucet before it gets worse",
+        x: -280, y: -80,
+        vx: 0, vy: 0,
+        mass: 1,
+        color: "#cbd5e1",
+        gradient: "linear-gradient(135deg, #cbd5e1, #cbd5e1)",
+        connections: { "8": 0.45 }, // Weak to existential thought
+        createdAt: Date.now() - 3000
+    },
+    {
+        id: "8",
+        content: "What if I just quit and traveled for a year?",
+        x: -340, y: -200,
+        vx: 0, vy: 0,
+        mass: 1,
+        color: "#f1f5f9",
+        gradient: "linear-gradient(135deg, #f1f5f9, #f1f5f9)",
+        connections: { "7": 0.45, "10": 0.8 }, // Strong to meta-thinking
+        createdAt: Date.now() - 2000
+    },
+    {
+        id: "9",
+        content: "The smell of rain always reminds me of childhood summers",
+        x: 300, y: 280,
+        vx: 0, vy: 0,
+        mass: 1,
+        color: "#e0f2fe",
+        gradient: "linear-gradient(135deg, #e0f2fe, #e0f2fe)",
+        connections: { "5": 0.95, "6": 0.85 }, // Strong sensory+nostalgia cluster
+        createdAt: Date.now() - 1000
+    },
+    {
+        id: "10",
+        content: "Am I procrastinating or just resting? There's a difference",
+        x: 80, y: -360,
+        vx: 0, vy: 0,
+        mass: 1,
+        color: "#f0f9ff",
+        gradient: "linear-gradient(135deg, #f0f9ff, #f0f9ff)",
+        connections: { "6": 0.5, "8": 0.8 }, // Meta-thinking cluster
+        createdAt: Date.now()
+    }
+];

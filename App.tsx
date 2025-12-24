@@ -10,12 +10,10 @@ import { Plus, Sparkles } from 'lucide-react';
 
 export default function App() {
   const [thoughts, setThoughts] = useState<ThoughtNode[]>(INITIAL_THOUGHTS);
-  const [viewState, setViewState] = useState<ViewState>({ 
-    x: 0, 
-    y: 0, 
-    z: -800, 
-    rotationX: 20, 
-    rotationY: 45 
+  const [viewState, setViewState] = useState<ViewState>({
+    x: 0,
+    y: 0,
+    zoom: 1
   });
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [groupSummary, setGroupSummary] = useState<GroupSummary | null>(null);
@@ -33,7 +31,7 @@ export default function App() {
     }
     const node = thoughts.find(t => t.id === selectedNodeId);
     if (!node) return;
-    const neighbors = thoughts.filter(t => node.connections.includes(t.id));
+    const neighbors = thoughts.filter(t => node.connections[t.id] !== undefined);
     const cluster = [node, ...neighbors];
     if (cluster.length > 1) {
         summarizeGroup(cluster).then(setGroupSummary);
@@ -42,7 +40,7 @@ export default function App() {
 
   const handleNodeClick = (node: ThoughtNode) => {
     setSelectedNodeId(node.id);
-    setViewState(prev => ({ ...prev, z: -300 }));
+    // Could zoom in here if desired: setViewState(prev => ({ ...prev, zoom: 1.2 }));
   };
 
   const handleDeleteNode = (id: string) => {
@@ -50,10 +48,11 @@ export default function App() {
           // Remove the node
           const remaining = prev.filter(t => t.id !== id);
           // Remove connections to this node from all other nodes to prevent ghost links
-          return remaining.map(t => ({
-              ...t,
-              connections: t.connections.filter(cid => cid !== id)
-          }));
+          return remaining.map(t => {
+              const newConnections = { ...t.connections };
+              delete newConnections[id];
+              return { ...t, connections: newConnections };
+          });
       });
       setSelectedNodeId(null);
   };
@@ -69,27 +68,26 @@ export default function App() {
     const newNode: ThoughtNode = {
       id: Date.now().toString(),
       content: text,
-      // Random offset near parent
-      x: originalNode.x + (Math.random() - 0.5) * 50,
-      y: originalNode.y + (Math.random() - 0.5) * 50,
-      z: originalNode.z + (Math.random() - 0.5) * 50,
-      vx: 0, vy: 0, vz: 0, mass: 1,
-      connections: [originalNode.id], // Hard connection
+      // Random offset near parent (accounting for larger nodes)
+      x: originalNode.x + (Math.random() - 0.5) * 200,
+      y: originalNode.y + (Math.random() - 0.5) * 200,
+      vx: 0, vy: 0, mass: 1,
+      connections: { [originalNode.id]: 1.0 }, // Strong direct connection
       color: persona.color.includes('zinc') ? '#d4d4d8' : persona.color.includes('rose') ? '#fb7185' : '#a78bfa',
       gradient: persona.gradient ? `linear-gradient(135deg, ${persona.gradient.split(' ')[1]}, ${persona.gradient.split(' ')[3]})` : originalNode.gradient,
       createdAt: Date.now()
     };
-    
+
     // Update original node to include connection to spark
     setThoughts(prev => {
-        const updatedPrev = prev.map(n => 
-            n.id === originalNode.id 
-            ? { ...n, connections: [...n.connections, newNode.id] } 
+        const updatedPrev = prev.map(n =>
+            n.id === originalNode.id
+            ? { ...n, connections: { ...n.connections, [newNode.id]: 1.0 } }
             : n
         );
         return [...updatedPrev, newNode];
     });
-    
+
     setSelectedNodeId(newNode.id);
   };
 
@@ -106,43 +104,39 @@ export default function App() {
       // 2. Find Connections (The Rhizome) - AI decides best fit
       const connectedIds = await findConnections(inputValue, thoughts);
       
-      // 3. Determine Spawn Position - Smart Embedding
-      let startX = 0, startY = 0, startZ = 0;
-      
+      // 3. Determine Spawn Position - Smart Embedding (2D)
+      let startX = 0, startY = 0;
+
+      const connectedNodeIds = Object.keys(connectedIds);
       if (thoughts.length === 0) {
-          // First thought: Center of the universe
-          startX = 0; startY = 0; startZ = 0;
-      } else if (connectedIds.length > 0) {
+          // First thought: Center of the canvas
+          startX = 0; startY = 0;
+      } else if (connectedNodeIds.length > 0) {
           // Connected? Place at the Center of Gravity of related nodes
-          const neighbors = thoughts.filter(t => connectedIds.includes(t.id));
+          const neighbors = thoughts.filter(t => connectedIds[t.id] !== undefined);
           if (neighbors.length > 0) {
             startX = neighbors.reduce((sum, n) => sum + n.x, 0) / neighbors.length;
             startY = neighbors.reduce((sum, n) => sum + n.y, 0) / neighbors.length;
-            startZ = neighbors.reduce((sum, n) => sum + n.z, 0) / neighbors.length;
-            // Add slight jitter so they don't spawn *inside* the others, but close enough for springs to catch
-            startX += (Math.random() - 0.5) * 40;
-            startY += (Math.random() - 0.5) * 40;
-            startZ += (Math.random() - 0.5) * 40;
+            // Add jitter accounting for larger node sizes
+            startX += (Math.random() - 0.5) * 160;
+            startY += (Math.random() - 0.5) * 160;
           }
       } else {
-          // No connections found? Spawn in the "Unknown" regions (periphery)
-          // Use spherical coordinates to place it somewhat randomly but far out to expand the universe
-          const r = 500 + Math.random() * 200;
+          // No connections found? Spawn at moderate distance (circular placement)
+          const r = 250 + Math.random() * 200;
           const theta = Math.random() * Math.PI * 2;
-          const phi = Math.random() * Math.PI;
-          startX = r * Math.sin(phi) * Math.cos(theta);
-          startY = r * Math.sin(phi) * Math.sin(theta);
-          startZ = r * Math.cos(phi);
+          startX = r * Math.cos(theta);
+          startY = r * Math.sin(theta);
       }
 
       const newNode: ThoughtNode = {
         id: Date.now().toString(),
         content: inputValue,
-        x: startX, y: startY, z: startZ,
-        vx: 0, vy: 0, vz: 0, mass: 1,
+        x: startX, y: startY,
+        vx: 0, vy: 0, mass: 1,
         color: semantics.color || '#fff',
         gradient: semantics.gradient || 'linear-gradient(#fff, #fff)',
-        connections: connectedIds,
+        connections: connectedIds, // Now it's { [id]: weight }
         createdAt: Date.now()
       };
 
@@ -151,8 +145,8 @@ export default function App() {
           // We also need to tell the OLD nodes that they are connected to the NEW node
           // if the connection is bidirectional (which physics prefers)
           const updatedPrev = prev.map(t => {
-              if (connectedIds.includes(t.id)) {
-                  return { ...t, connections: [...t.connections, newNode.id] };
+              if (connectedIds[t.id] !== undefined) {
+                  return { ...t, connections: { ...t.connections, [newNode.id]: connectedIds[t.id] } };
               }
               return t;
           });

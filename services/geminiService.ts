@@ -24,23 +24,29 @@ export const analyzeSemantics = async (thought: string): Promise<Partial<Thought
 export const findConnections = async (
   newThought: string,
   existingThoughts: ThoughtNode[]
-): Promise<string[]> => {
-    if (existingThoughts.length === 0) return [];
+): Promise<{ [id: string]: number }> => {
+    if (existingThoughts.length === 0) return {};
 
     const model = "gemini-2.5-flash";
     // Send a simplified list to save tokens
     const context = existingThoughts.map(t => ({ id: t.id, content: t.content }));
-    
+
     const prompt = `
       I am adding a new thought to a mind map.
       New Thought: "${newThought}"
-      
+
       Existing Thoughts: ${JSON.stringify(context)}
 
       Identify up to 3 existing thoughts that are semantically related, thematically linked, or share a "vibe" with the new thought.
-      If nothing is related, return an empty list.
+      For each connection, assign a strength score:
+      - 0.9-1.0: Very strong semantic connection
+      - 0.7-0.8: Strong thematic link
+      - 0.5-0.6: Moderate connection
+      - 0.3-0.4: Weak but meaningful link
 
-      Return JSON: { "relatedIds": string[] }
+      If nothing is related, return an empty object.
+
+      Return JSON: { "connections": { "id1": 0.8, "id2": 0.5, ... } }
     `;
 
     try {
@@ -52,16 +58,19 @@ export const findConnections = async (
                 responseSchema: {
                     type: Type.OBJECT,
                     properties: {
-                        relatedIds: { type: Type.ARRAY, items: { type: Type.STRING } }
+                        connections: {
+                            type: Type.OBJECT,
+                            additionalProperties: { type: Type.NUMBER }
+                        }
                     }
                 }
             }
         });
         const res = JSON.parse(response.text || "{}");
-        return res.relatedIds || [];
+        return res.connections || {};
     } catch (e) {
         console.error("Connection search failed", e);
-        return [];
+        return {};
     }
 };
 
