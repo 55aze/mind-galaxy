@@ -56,18 +56,25 @@ export const getRandomMindfulColor = () => {
     return PALETTE[Math.floor(Math.random() * PALETTE.length)];
 };
 
-// --- PHYSICS CONSTANTS (TUNED FOR 2D OBSIDIAN-STYLE GRAPH WITH CLUSTERING) ---
+// --- PHYSICS CONSTANTS (TUNED FOR DRAMATIC CLUSTERING WITH RELATIVE SPACING) ---
 export const DEFAULT_PHYSICS = {
-    // Higher repulsion for larger nodes to prevent overlap
-    REPULSION: 50000,
-    // Shorter springs for tighter clustering (weight multiplies this)
-    SPRING_LENGTH: 120,
-    // Higher stiffness for strong clustering
-    STIFFNESS: 0.12,
-    // High damping for quick settling (closer to 1 = more friction)
-    DAMPING: 0.92,
-    // Minimal center pull to prevent drift
-    CENTER_GRAVITY: 0.0001
+    // Reduced repulsion to allow clustering (10x weaker than before)
+    REPULSION: 5000,
+    // Base spring length matches new node diameter
+    SPRING_LENGTH: 40,
+    // Stronger springs for tight clustering
+    STIFFNESS: 0.3,
+    // Slightly lower damping for smoother movement
+    DAMPING: 0.88,
+    // Stronger center pull to keep graph cohesive
+    CENTER_GRAVITY: 0.0005
+};
+
+// Node sizing constants for relative spacing
+export const NODE_DIAMETER = 40;
+export const DIAMETER_MULTIPLIER = {
+    MIN: 0.3,  // Strong connections (0.9+) → almost touching (12px)
+    MAX: 3.0   // Weak connections (0.3-0.4) → far apart (120px)
 };
 
 // Start with 10 varied fleeting thoughts (2D layout with weighted connections)
@@ -86,7 +93,7 @@ export const INITIAL_THOUGHTS: ThoughtNode[] = [
     {
         id: "2",
         content: "Why do I always feel more creative at night?",
-        x: 180, y: -120,
+        x: 90, y: -60,
         vx: 0, vy: 0,
         mass: 1,
         color: "#cbd5e1",
@@ -97,7 +104,7 @@ export const INITIAL_THOUGHTS: ThoughtNode[] = [
     {
         id: "3",
         content: "Coffee tastes better when you make it slowly",
-        x: -200, y: 160,
+        x: -100, y: 80,
         vx: 0, vy: 0,
         mass: 1,
         color: "#f1f5f9",
@@ -108,7 +115,7 @@ export const INITIAL_THOUGHTS: ThoughtNode[] = [
     {
         id: "4",
         content: "Should I learn guitar or stick with piano?",
-        x: -160, y: 320,
+        x: -80, y: 160,
         vx: 0, vy: 0,
         mass: 1,
         color: "#e0f2fe",
@@ -119,7 +126,7 @@ export const INITIAL_THOUGHTS: ThoughtNode[] = [
     {
         id: "5",
         content: "The way light hits the trees in autumn is magical",
-        x: 120, y: 200,
+        x: 60, y: 100,
         vx: 0, vy: 0,
         mass: 1,
         color: "#f0f9ff",
@@ -130,7 +137,7 @@ export const INITIAL_THOUGHTS: ThoughtNode[] = [
     {
         id: "6",
         content: "I wonder if my old friends from college still think about me",
-        x: 240, y: -240,
+        x: 120, y: -120,
         vx: 0, vy: 0,
         mass: 1,
         color: "#e2e8f0",
@@ -141,7 +148,7 @@ export const INITIAL_THOUGHTS: ThoughtNode[] = [
     {
         id: "7",
         content: "Need to fix that leaky faucet before it gets worse",
-        x: -280, y: -80,
+        x: -140, y: -40,
         vx: 0, vy: 0,
         mass: 1,
         color: "#cbd5e1",
@@ -152,7 +159,7 @@ export const INITIAL_THOUGHTS: ThoughtNode[] = [
     {
         id: "8",
         content: "What if I just quit and traveled for a year?",
-        x: -340, y: -200,
+        x: -170, y: -100,
         vx: 0, vy: 0,
         mass: 1,
         color: "#f1f5f9",
@@ -163,7 +170,7 @@ export const INITIAL_THOUGHTS: ThoughtNode[] = [
     {
         id: "9",
         content: "The smell of rain always reminds me of childhood summers",
-        x: 300, y: 280,
+        x: 150, y: 140,
         vx: 0, vy: 0,
         mass: 1,
         color: "#e0f2fe",
@@ -174,7 +181,7 @@ export const INITIAL_THOUGHTS: ThoughtNode[] = [
     {
         id: "10",
         content: "Am I procrastinating or just resting? There's a difference",
-        x: 80, y: -360,
+        x: 40, y: -180,
         vx: 0, vy: 0,
         mass: 1,
         color: "#f0f9ff",

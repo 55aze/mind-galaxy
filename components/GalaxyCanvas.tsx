@@ -97,7 +97,7 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
       a.fx -= a.x * P.CENTER_GRAVITY;
       a.fy -= a.y * P.CENTER_GRAVITY;
 
-      // Attraction (Springs) - weighted by connection strength
+      // Attraction (Springs) - weighted by connection strength with exponential clustering
       for (const connId in a.connections) {
         const weight = a.connections[connId];
         const b = physicsNodes.current.get(connId);
@@ -106,8 +106,16 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
           const dy = a.y - b.y;
           const dist = Math.sqrt(dx * dx + dy * dy) || 1;
 
-          // Stronger connections = shorter desired length (tighter clustering)
-          const targetLength = P.SPRING_LENGTH * (1 - weight * 0.5);
+          // Relative spacing: exponential formula for dramatic clustering
+          // NODE_DIAMETER = 40px
+          // Weight 1.0 → 12px (almost touching)
+          // Weight 0.3 → 110px (far apart)
+          const NODE_DIAMETER = 40;
+          const MIN_MULTIPLIER = 0.3;
+          const MAX_MULTIPLIER = 3.0;
+          const targetLength = NODE_DIAMETER * (MIN_MULTIPLIER +
+            (MAX_MULTIPLIER - MIN_MULTIPLIER) * Math.pow(1 - weight, 2));
+
           const displacement = dist - targetLength;
           const force = displacement * P.STIFFNESS * weight; // Weight amplifies force
 
@@ -252,21 +260,47 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
 
       {/* DOM Elements Layer */}
       <div className="absolute inset-0 pointer-events-none z-10">
-        {thoughts.map((node) => {
-          // Calculate connection strength to active node
-          let connectionWeight = 0;
-          if (activeNodeId) {
-            if (node.id === activeNodeId) {
-              connectionWeight = 1;
-            } else if (node.connections[activeNodeId]) {
-              connectionWeight = node.connections[activeNodeId];
-            } else if (activeNode && activeNode.connections[node.id]) {
-              connectionWeight = activeNode.connections[node.id];
-            }
+        {(() => {
+          // Calculate top 3 strongest connections
+          let top3Connections: string[] = [];
+          if (activeNodeId && activeNode) {
+            const connectionWeights: Array<{ nodeId: string, weight: number }> = [];
+
+            thoughts.forEach(node => {
+              if (node.id === activeNodeId) return; // Skip the active node itself
+
+              // Check both directions for connections
+              const weight = node.connections[activeNodeId] ||
+                             activeNode.connections[node.id] || 0;
+
+              if (weight > 0) {
+                connectionWeights.push({ nodeId: node.id, weight });
+              }
+            });
+
+            // Sort by weight descending and take top 3
+            top3Connections = connectionWeights
+              .sort((a, b) => b.weight - a.weight)
+              .slice(0, 3)
+              .map(c => c.nodeId);
           }
 
-          const isDirectlyConnected = connectionWeight > 0;
-          const isDimmed = activeNodeId && !isDirectlyConnected;
+          return thoughts.map((node) => {
+            // Calculate connection strength to active node
+            let connectionWeight = 0;
+            if (activeNodeId) {
+              if (node.id === activeNodeId) {
+                connectionWeight = 1;
+              } else if (node.connections[activeNodeId]) {
+                connectionWeight = node.connections[activeNodeId];
+              } else if (activeNode && activeNode.connections[node.id]) {
+                connectionWeight = activeNode.connections[node.id];
+              }
+            }
+
+            const isDirectlyConnected = connectionWeight > 0;
+            const isTop3Connected = top3Connections.includes(node.id);
+            const isDimmed = activeNodeId && !isDirectlyConnected;
           const { x, y } = worldToScreen(node.x, node.y);
 
           // Calculate average connection strength for border intensity
@@ -301,36 +335,67 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
                 onMouseLeave={() => setHoveredNodeId(null)}
                 className="cursor-pointer"
               >
-                {/* Obsidian-style Node with weighted highlighting */}
-                <div
-                  className="rounded-full transition-all duration-300 flex items-center justify-center px-4 py-3"
-                  style={{
-                    minWidth: isDirectlyConnected ? `${120 * viewState.zoom}px` : `${100 * viewState.zoom}px`,
-                    minHeight: isDirectlyConnected ? `${120 * viewState.zoom}px` : `${100 * viewState.zoom}px`,
-                    background: `rgba(226, 232, 240, ${0.15 + avgWeight * 0.1})`,
-                    border: isDirectlyConnected
-                      ? `${2 + connectionWeight * 2}px solid rgba(56, 189, 248, ${0.4 + connectionWeight * 0.4})`
-                      : `2px solid rgba(226, 232, 240, ${0.2 + avgWeight * 0.3})`,
-                    boxShadow: isDirectlyConnected
-                      ? `0 0 ${20 + connectionWeight * 20}px ${3 + connectionWeight * 5}px rgba(56, 189, 248, ${0.3 + connectionWeight * 0.3})`
-                      : `0 0 ${10 + avgWeight * 10}px ${1 + avgWeight * 2}px rgba(255, 255, 255, ${0.15 + avgWeight * 0.15})`,
-                    backdropFilter: 'blur(10px)'
-                  }}
-                >
-                  <p
-                    className="text-white/90 font-medium text-center leading-tight line-clamp-3"
-                    style={{
-                      fontSize: `${12 * viewState.zoom}px`,
-                      maxWidth: `${90 * viewState.zoom}px`
-                    }}
-                  >
-                    {node.content.split(' ').slice(0, 8).join(' ')}
-                  </p>
-                </div>
+                {/* Calculate node size based on connection status */}
+                {(() => {
+                  const baseSize = isTop3Connected ? 48 : 40;  // 20% larger for top 3
+                  const sizeMultiplier = isDirectlyConnected ? 1.3 : 1.0;
+                  const finalSize = baseSize * sizeMultiplier * viewState.zoom;
+
+                  return (
+                    <>
+                      {/* Minimal dot node - Apple Mindfulness style */}
+                      <div
+                        className="rounded-full transition-all duration-300"
+                        style={{
+                          width: `${finalSize}px`,
+                          height: `${finalSize}px`,
+                          background: `rgba(226, 232, 240, ${0.2 + avgWeight * 0.3})`,
+                          border: isTop3Connected
+                            ? `4px solid rgba(56, 189, 248, 1.0)`  // Thick, fully opaque cyan for top 3
+                            : isDirectlyConnected
+                              ? `${2 + connectionWeight * 2}px solid rgba(56, 189, 248, ${0.4 + connectionWeight * 0.4})`
+                              : `2px solid rgba(226, 232, 240, ${0.2 + avgWeight * 0.3})`,
+                          boxShadow: isTop3Connected
+                            ? `0 0 60px 15px rgba(56, 189, 248, 0.8), 0 0 30px 8px rgba(56, 189, 248, 0.6)`
+                            : isDirectlyConnected
+                              ? `0 0 ${20 + connectionWeight * 20}px ${3 + connectionWeight * 5}px rgba(56, 189, 248, ${0.3 + connectionWeight * 0.3})`
+                              : `0 0 ${10 + avgWeight * 10}px ${1 + avgWeight * 2}px rgba(255, 255, 255, ${0.15 + avgWeight * 0.15})`,
+                          backdropFilter: 'blur(10px)'
+                        }}
+                      />
+
+                      {/* Floating text below node - Apple Mindfulness style */}
+                      {(hoveredNodeId === node.id || selectedNodeId === node.id) && (
+                        <div
+                          className="absolute pointer-events-none"
+                          style={{
+                            top: `${finalSize / 2 + 16}px`,
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                            width: 'max-content',
+                            maxWidth: '280px',
+                            animation: 'fadeIn 0.2s ease-out'
+                          }}
+                        >
+                          <p
+                            className="text-white/90 text-center leading-relaxed"
+                            style={{
+                              fontSize: '14px',
+                              textShadow: '0 2px 8px rgba(0, 0, 0, 0.4)'
+                            }}
+                          >
+                            {node.content}
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </div>
           );
-        })}
+        });
+        })()}
       </div>
     </div>
   );
