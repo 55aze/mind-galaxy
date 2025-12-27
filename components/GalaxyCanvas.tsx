@@ -365,7 +365,8 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
                       />
 
                       {/* Floating text below node - Apple Mindfulness style */}
-                      {(hoveredNodeId === node.id || selectedNodeId === node.id) && (
+                      {/* Only show for hovered node to prevent overlapping text */}
+                      {hoveredNodeId === node.id && (
                         <div
                           className="absolute pointer-events-none"
                           style={{
@@ -374,18 +375,28 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
                             transform: 'translateX(-50%)',
                             width: 'max-content',
                             maxWidth: '280px',
-                            animation: 'fadeIn 0.2s ease-out'
+                            animation: 'fadeIn 0.2s ease-out',
+                            zIndex: 1000
                           }}
                         >
-                          <p
-                            className="text-white/90 text-center leading-relaxed"
+                          <div
+                            className="px-4 py-2 rounded-lg"
                             style={{
-                              fontSize: '14px',
-                              textShadow: '0 2px 8px rgba(0, 0, 0, 0.4)'
+                              background: 'rgba(10, 16, 20, 0.95)',
+                              backdropFilter: 'blur(12px)',
+                              border: '1px solid rgba(56, 189, 248, 0.3)'
                             }}
                           >
-                            {node.content}
-                          </p>
+                            <p
+                              className="text-white/90 text-center leading-relaxed"
+                              style={{
+                                fontSize: '14px',
+                                textShadow: '0 2px 8px rgba(0, 0, 0, 0.4)'
+                              }}
+                            >
+                              {node.content}
+                            </p>
+                          </div>
                         </div>
                       )}
                     </>
