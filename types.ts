@@ -35,6 +35,14 @@ export interface GroupSummary {
   description: string;
 }
 
+export interface Cluster {
+  id: string;
+  nodeIds: string[];
+  summary: GroupSummary | null;
+  centerX: number;
+  centerY: number;
+}
+
 export interface ViewState {
   x: number;
   y: number;

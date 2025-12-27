@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { INITIAL_THOUGHTS, DEFAULT_PHYSICS } from './constants';
-import { ThoughtNode, ViewState, Persona, GroupSummary } from './types';
+import { ThoughtNode, ViewState, Persona, GroupSummary, Cluster } from './types';
 import { GalaxyCanvas } from './components/GalaxyCanvas';
 import { Inspector } from './components/Inspector';
 import { SearchWidget } from './components/SearchWidget';
 import { PhysicsControls, PhysicsConfig } from './components/PhysicsControls';
 import { findConnections, analyzeSemantics, summarizeGroup } from './services/geminiService';
+import { detectClusters, buildClusters } from './utils/clusterDetection';
 import { Plus, Sparkles } from 'lucide-react';
 
 export default function App() {
@@ -20,9 +21,12 @@ export default function App() {
   const [inputMode, setInputMode] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
-  
+
   // Physics State
   const [physicsConfig, setPhysicsConfig] = useState<PhysicsConfig>(DEFAULT_PHYSICS);
+
+  // Cluster State
+  const [clusters, setClusters] = useState<Cluster[]>([]);
 
   useEffect(() => {
     if (!selectedNodeId) {
@@ -37,6 +41,39 @@ export default function App() {
         summarizeGroup(cluster).then(setGroupSummary);
     }
   }, [selectedNodeId, thoughts]);
+
+  // Detect clusters and generate summaries
+  useEffect(() => {
+    const detectAndSummarizeClusters = async () => {
+      if (thoughts.length < 2) {
+        setClusters([]);
+        return;
+      }
+
+      // Detect cluster groups
+      const clusterGroups = detectClusters(thoughts, 0.6);
+      if (clusterGroups.length === 0) {
+        setClusters([]);
+        return;
+      }
+
+      // Build cluster objects
+      const newClusters = buildClusters(clusterGroups, thoughts);
+
+      // Generate summaries for each cluster
+      const clustersWithSummaries = await Promise.all(
+        newClusters.map(async (cluster) => {
+          const clusterNodes = thoughts.filter(t => cluster.nodeIds.includes(t.id));
+          const summary = await summarizeGroup(clusterNodes);
+          return { ...cluster, summary };
+        })
+      );
+
+      setClusters(clustersWithSummaries);
+    };
+
+    detectAndSummarizeClusters();
+  }, [thoughts]);
 
   const handleNodeClick = (node: ThoughtNode) => {
     setSelectedNodeId(node.id);
@@ -167,13 +204,14 @@ export default function App() {
 
   return (
     <div className="relative w-screen h-screen bg-[#0a1014] text-white overflow-hidden font-sans selection:bg-teal-500/30">
-      <GalaxyCanvas 
+      <GalaxyCanvas
         thoughts={thoughts}
         viewState={viewState}
         setViewState={setViewState}
         onNodeClick={handleNodeClick}
         selectedNodeId={selectedNodeId}
         physicsConfig={physicsConfig}
+        clusters={clusters}
       />
 
       <div className="absolute top-8 left-8 pointer-events-none z-40">

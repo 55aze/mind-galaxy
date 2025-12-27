@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { ThoughtNode, ViewState } from '../types';
+import { ThoughtNode, ViewState, Cluster } from '../types';
 import { PhysicsConfig } from './PhysicsControls';
 
 interface GalaxyCanvasProps {
@@ -9,6 +9,7 @@ interface GalaxyCanvasProps {
   onNodeClick: (node: ThoughtNode) => void;
   selectedNodeId: string | null;
   physicsConfig: PhysicsConfig;
+  clusters: Cluster[];
 }
 
 type PhysicsNode = ThoughtNode & { fx: number, fy: number, isSleeping: boolean };
@@ -19,7 +20,8 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
   setViewState,
   onNodeClick,
   selectedNodeId,
-  physicsConfig
+  physicsConfig,
+  clusters
 }) => {
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -257,6 +259,49 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
       style={{ cursor: isDragging.current ? 'grabbing' : 'grab' }}
     >
       <canvas ref={canvasRef} width={dimensions.width} height={dimensions.height} className="absolute inset-0 pointer-events-none z-0" />
+
+      {/* Cluster Theme Overlays */}
+      <div className="absolute inset-0 pointer-events-none z-5">
+        {clusters.map((cluster) => {
+          if (!cluster.summary) return null;
+
+          const { x, y } = worldToScreen(cluster.centerX, cluster.centerY);
+
+          // Show cluster themes more prominently when zoomed out
+          const opacity = viewState.zoom < 0.7 ? 0.9 : viewState.zoom < 1.0 ? 0.6 : 0.3;
+          const scale = viewState.zoom < 0.7 ? 1.2 : 1.0;
+
+          return (
+            <div
+              key={cluster.id}
+              className="absolute"
+              style={{
+                left: x,
+                top: y,
+                transform: `translate(-50%, -50%) scale(${scale})`,
+                opacity,
+                transition: 'opacity 0.3s ease-out, transform 0.3s ease-out'
+              }}
+            >
+              <div
+                className="px-6 py-3 rounded-lg backdrop-blur-md"
+                style={{
+                  background: 'rgba(20, 184, 166, 0.15)',
+                  border: '1px solid rgba(20, 184, 166, 0.3)',
+                  boxShadow: '0 0 20px rgba(20, 184, 166, 0.2)'
+                }}
+              >
+                <h3 className="text-teal-200 font-semibold text-sm uppercase tracking-wide mb-1">
+                  {cluster.summary.theme}
+                </h3>
+                <p className="text-white/70 text-xs max-w-xs">
+                  {cluster.summary.description}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
       {/* DOM Elements Layer */}
       <div className="absolute inset-0 pointer-events-none z-10">
