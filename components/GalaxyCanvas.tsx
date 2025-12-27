@@ -286,12 +286,12 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
               <div
                 className="px-6 py-3 rounded-lg backdrop-blur-md"
                 style={{
-                  background: 'rgba(20, 184, 166, 0.15)',
-                  border: '1px solid rgba(20, 184, 166, 0.3)',
-                  boxShadow: '0 0 20px rgba(20, 184, 166, 0.2)'
+                  background: 'rgba(139, 92, 246, 0.15)',
+                  border: '1px solid rgba(139, 92, 246, 0.3)',
+                  boxShadow: '0 0 20px rgba(139, 92, 246, 0.2)'
                 }}
               >
-                <h3 className="text-teal-200 font-semibold text-sm uppercase tracking-wide mb-1">
+                <h3 className="text-violet-300 font-semibold text-sm uppercase tracking-wide mb-1">
                   {cluster.summary.theme}
                 </h3>
                 <p className="text-white/70 text-xs max-w-xs">

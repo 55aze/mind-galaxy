@@ -135,11 +135,11 @@ export const Inspector: React.FC<InspectorProps> = ({ node, groupSummary, onClos
       {/* Connections List (The Rhizome) */}
       <div className="mb-8">
           <h4 className="text-[10px] font-bold uppercase tracking-widest text-white/40 mb-3 flex items-center gap-2">
-              <Network size={12} /> Semantic Rhizome ({node.connections.length})
+              <Network size={12} /> Semantic Rhizome ({Object.keys(node.connections).length})
           </h4>
           <div className="flex flex-wrap gap-2">
-             {node.connections.length > 0 ? (
-                 <div className="text-xs text-white/50 italic">Connected to {node.connections.length} other thoughts in the web.</div>
+             {Object.keys(node.connections).length > 0 ? (
+                 <div className="text-xs text-white/50 italic">Connected to {Object.keys(node.connections).length} other thoughts in the web.</div>
              ) : (
                  <div className="text-xs text-white/30 italic">Floating in the void. No connections yet.</div>
              )}

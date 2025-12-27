@@ -222,6 +222,18 @@ export default function App() {
         </div>
       </div>
 
+      {/* Zoom Level Indicator */}
+      <div
+        className="absolute bottom-8 left-8 pointer-events-none z-40 transition-opacity duration-300"
+        style={{ opacity: Math.abs(viewState.zoom - 1.0) < 0.05 ? 0.2 : 0.6 }}
+      >
+        <div className="px-3 py-1.5 bg-white/5 backdrop-blur-md border border-white/10 rounded-lg">
+          <span className="text-[10px] font-mono text-white/60 uppercase tracking-widest">
+            Zoom: {Math.round(viewState.zoom * 100)}%
+          </span>
+        </div>
+      </div>
+
       <div className="absolute top-8 right-8 z-50">
           <SearchWidget thoughts={thoughts} onSelectNode={handleNodeClick} />
       </div>
