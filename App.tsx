@@ -6,7 +6,7 @@ import { Inspector } from './components/Inspector';
 import { SearchWidget } from './components/SearchWidget';
 import { PhysicsControls, PhysicsConfig } from './components/PhysicsControls';
 import { findConnections, analyzeSemantics, summarizeGroup } from './services/geminiService';
-import { detectClusters, buildClusters } from './utils/clusterDetection';
+import { detectClusters, buildClusters, groupIntoMetaClusters } from './utils/clusterDetection';
 import { Plus, Sparkles } from 'lucide-react';
 
 export default function App() {
@@ -42,7 +42,7 @@ export default function App() {
     }
   }, [selectedNodeId, thoughts]);
 
-  // Detect clusters and generate summaries
+  // Detect hierarchical clusters and generate summaries
   useEffect(() => {
     const detectAndSummarizeClusters = async () => {
       if (thoughts.length < 2) {
@@ -50,19 +50,25 @@ export default function App() {
         return;
       }
 
-      // Detect cluster groups
+      // Detect sub-cluster groups
       const clusterGroups = detectClusters(thoughts, 0.6);
       if (clusterGroups.length === 0) {
         setClusters([]);
         return;
       }
 
-      // Build cluster objects
-      const newClusters = buildClusters(clusterGroups, thoughts);
+      // Build sub-cluster objects
+      const subClusters = buildClusters(clusterGroups, thoughts);
+
+      // Group sub-clusters into major clusters (max 5)
+      const { majorClusters, subClusters: updatedSubClusters } = groupIntoMetaClusters(subClusters, 5);
+
+      // Combine all clusters (both major and sub)
+      const allClusters = [...majorClusters, ...updatedSubClusters];
 
       // Generate summaries for each cluster
       const clustersWithSummaries = await Promise.all(
-        newClusters.map(async (cluster) => {
+        allClusters.map(async (cluster) => {
           const clusterNodes = thoughts.filter(t => cluster.nodeIds.includes(t.id));
           const summary = await summarizeGroup(clusterNodes);
           return { ...cluster, summary };

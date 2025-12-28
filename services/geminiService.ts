@@ -2,7 +2,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { ThoughtNode, Persona, GroupSummary } from "../types";
 import { getRandomMindfulColor } from "../constants";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
 
 /**
  * 1. Analyzes the "Vibe" (Optional, now mostly just returns a mindful color)
@@ -95,32 +95,39 @@ export const generateSpark = async (thought: string, persona: Persona): Promise<
 
 export const summarizeGroup = async (nodes: ThoughtNode[]): Promise<GroupSummary> => {
     if (nodes.length === 0) return { theme: "Void", description: "Empty space." };
-    const contentList = nodes.map(n => n.content).join("\n");
-    const model = "gemini-2.5-flash";
-    const prompt = `
-      Analyze this cluster of thoughts:
-      ${contentList}
-      1. Theme (max 5 words).
-      2. 1-sentence insight.
-      Return JSON: { "theme": string, "description": string }
-    `;
-    try {
-        const response = await ai.models.generateContent({
-            model,
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: Type.OBJECT,
-                    properties: { theme: { type: Type.STRING }, description: { type: Type.STRING } }
-                }
-            }
-        });
-        const res = JSON.parse(response.text || "{}");
-        return { theme: res.theme || "Cluster", description: res.description || "Connected ideas." };
-    } catch (e) {
-        return { theme: "Unknown", description: "..." };
+
+    // Simple keyword-based theme detection
+    const contentList = nodes.map(n => n.content.toLowerCase()).join(" ");
+
+    const themePatterns = [
+        { keywords: ['ai', 'code', 'tech', 'programming', 'software', 'quantum', 'digital'], theme: 'Technology & Innovation', desc: 'Digital frontiers and technical exploration' },
+        { keywords: ['meaning', 'life', 'exist', 'conscious', 'universe', 'think', 'philosophy'], theme: 'Philosophy & Existence', desc: 'Deep questions about reality and consciousness' },
+        { keywords: ['art', 'music', 'creat', 'paint', 'write', 'photo', 'dance'], theme: 'Creative Expression', desc: 'Artistic pursuits and creative flow' },
+        { keywords: ['nature', 'tree', 'ocean', 'water', 'star', 'mountain', 'climate', 'earth'], theme: 'Nature & Environment', desc: 'Connection with the natural world' },
+        { keywords: ['friend', 'love', 'family', 'social', 'relationship', 'empathy', 'lonely'], theme: 'Relationships & Connection', desc: 'Human bonds and social experiences' },
+        { keywords: ['health', 'sleep', 'mental', 'exercise', 'meditat', 'wellness', 'therapy'], theme: 'Health & Wellness', desc: 'Mind and body care practices' },
+        { keywords: ['work', 'job', 'career', 'skill', 'mentor', 'hustle', 'remote'], theme: 'Career & Growth', desc: 'Professional development and work life' },
+        { keywords: ['travel', 'japan', 'hike', 'adventure', 'country', 'explore', 'journey'], theme: 'Travel & Adventure', desc: 'Exploration and wanderlust' },
+        { keywords: ['food', 'cook', 'coffee', 'meal', 'pasta', 'bread', 'spice', 'chocolate'], theme: 'Food & Cooking', desc: 'Culinary experiences and gastronomy' },
+        { keywords: ['science', 'universe', 'brain', 'learn', 'crispr', 'evolution', 'math', 'space'], theme: 'Science & Learning', desc: 'Scientific discovery and knowledge' },
+    ];
+
+    // Count keyword matches for each theme
+    let bestMatch = { theme: 'Miscellaneous', desc: 'Diverse unconnected thoughts', score: 0 };
+
+    for (const pattern of themePatterns) {
+        let score = 0;
+        for (const keyword of pattern.keywords) {
+            const regex = new RegExp(keyword, 'gi');
+            const matches = contentList.match(regex);
+            if (matches) score += matches.length;
+        }
+        if (score > bestMatch.score) {
+            bestMatch = { theme: pattern.theme, desc: pattern.desc, score };
+        }
     }
+
+    return { theme: bestMatch.theme, description: bestMatch.desc };
 }
 
 export const findRelatedThoughts = async (query: string, thoughts: ThoughtNode[]): Promise<string[]> => {

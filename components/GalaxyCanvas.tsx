@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { ThoughtNode, ViewState, Cluster } from '../types';
 import { PhysicsConfig } from './PhysicsControls';
 
@@ -71,6 +71,18 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
   const activeNodeId = hoveredNodeId || selectedNodeId;
   const activeNode = thoughts.find(t => t.id === activeNodeId);
 
+  // Use refs for values that shouldn't trigger animation restart
+  const viewStateRef = useRef(viewState);
+  const activeNodeIdRef = useRef(activeNodeId);
+
+  useEffect(() => {
+    viewStateRef.current = viewState;
+  }, [viewState]);
+
+  useEffect(() => {
+    activeNodeIdRef.current = activeNodeId;
+  }, [activeNodeId]);
+
   // Resize Handler
   useEffect(() => {
     const handleResize = () => setDimensions({ width: window.innerWidth, height: window.innerHeight });
@@ -131,17 +143,25 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
         }
       }
 
-      // Repulsion
+      // Repulsion - optimized for performance
       for (let j = i + 1; j < nodeCount; j++) {
         const b = nodes[j];
+
+        // Skip if both nodes are sleeping
+        if (a.isSleeping && b.isSleeping) continue;
+
         const dx = a.x - b.x;
         const dy = a.y - b.y;
-        const distSq = dx * dx + dy * dy || 1;
+        const distSq = dx * dx + dy * dy;
 
-        if (distSq > 1000000) continue; // Skip distant nodes
+        // Increased threshold to skip more distant nodes (sqrt(500000) ≈ 707px)
+        if (distSq > 500000 || distSq < 1) continue;
 
         const dist = Math.sqrt(distSq);
         const force = Math.min(P.REPULSION / distSq, 20);
+
+        // Only apply force if significant
+        if (force < 0.02) continue;
 
         const rfx = (dx / dist) * force;
         const rfy = (dy / dist) * force;
@@ -188,7 +208,7 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
     }
 
     rafRef.current = requestAnimationFrame(animate);
-  }, [viewState, activeNodeId]);
+  }, []); // Remove viewState and activeNodeId to prevent animation restart on zoom
 
   useEffect(() => {
     rafRef.current = requestAnimationFrame(animate);
@@ -247,6 +267,170 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
     };
   };
 
+  // Memoize cluster data (structure only, no positioning)
+  const clusterData = useMemo(() => {
+    return clusters.map((cluster) => {
+      if (!cluster.summary) return null;
+
+      const clusterSize = cluster.nodeIds.length;
+
+      // Pre-calculate size-based properties (don't change with zoom)
+      const baseScale = cluster.level === 'major'
+        ? 1.2 + (clusterSize / 30)
+        : 0.7 + (clusterSize / 25);
+
+      const glowIntensity = cluster.level === 'major'
+        ? Math.min(clusterSize / 15, 1.0)
+        : Math.min(clusterSize / 12, 0.8);
+
+      const glowRadius = cluster.level === 'major'
+        ? 50 + clusterSize * 4
+        : 35 + clusterSize * 3;
+
+      return {
+        cluster,
+        clusterSize,
+        baseScale,
+        glowIntensity,
+        glowRadius
+      };
+    }).filter(Boolean);
+  }, [clusters]); // Only recalculate when clusters change!
+
+  // Render clusters with dynamic positioning (cheap operation)
+  const clusterElements = clusterData.map((data) => {
+    if (!data) return null;
+    const { cluster, clusterSize, baseScale, glowIntensity, glowRadius } = data;
+
+    // Dynamic calculations based on current viewState (cheap math)
+    const { x, y } = worldToScreen(cluster.centerX, cluster.centerY);
+
+    // Strict 3-layer zoom hierarchy
+    // Layer 1 (zoom < 0.7): Only major clusters
+    // Layer 2 (zoom 0.7-1.2): Only sub-clusters
+    // Layer 3 (zoom >= 1.2): Sub-clusters fade out, nodes take over
+    let shouldRender = false;
+
+    if (cluster.level === 'major') {
+      // Major clusters: visible only in Layer 1
+      shouldRender = viewState.zoom < 0.7;
+    } else {
+      // Sub-clusters: visible in Layer 2 and early Layer 3
+      shouldRender = viewState.zoom >= 0.7 && viewState.zoom < 1.5;
+    }
+
+    if (!shouldRender) return null;
+
+    // Fixed scale per level (no zoom scaling for cleaner look)
+    const finalScale = baseScale;
+
+      return (
+        <div
+          key={cluster.id}
+          className="absolute"
+          style={{
+            left: x,
+            top: y,
+            transform: `translate(-50%, -50%) scale(${finalScale})`,
+          }}
+        >
+          {/* Nebula glow layers - GPU optimized */}
+          <div className="relative">
+            {/* Single combined glow - more performant, color varies by level */}
+            <div
+              className="absolute inset-0 rounded-full"
+              style={{
+                width: `${glowRadius * 1.5}px`,
+                height: `${glowRadius * 1.5}px`,
+                left: '50%',
+                top: '50%',
+                transform: 'translate(-50%, -50%)',
+                background: cluster.level === 'major'
+                  ? `radial-gradient(circle, rgba(139, 92, 246, ${0.30 * glowIntensity}) 0%, rgba(167, 139, 250, ${0.18 * glowIntensity}) 30%, rgba(139, 92, 246, ${0.08 * glowIntensity}) 60%, transparent 80%)`
+                  : `radial-gradient(circle, rgba(96, 165, 250, ${0.20 * glowIntensity}) 0%, rgba(147, 197, 253, ${0.12 * glowIntensity}) 30%, rgba(96, 165, 250, ${0.05 * glowIntensity}) 60%, transparent 80%)`,
+                filter: 'blur(18px)',
+                willChange: 'transform, opacity',
+              }}
+            />
+
+            {/* Floating text - minimal content for major, detailed for sub */}
+            <div className="relative px-3 py-2">
+              <h3
+                className="font-semibold uppercase tracking-wider text-center"
+                style={{
+                  fontSize: cluster.level === 'major' ? '14px' : '13px',
+                  color: '#FFFFFF',
+                  textShadow: cluster.level === 'major'
+                    ? '0 0 12px rgba(139, 92, 246, 0.8), 0 0 24px rgba(139, 92, 246, 0.5), 0 2px 8px rgba(0, 0, 0, 0.9)'
+                    : '0 0 10px rgba(96, 165, 250, 0.8), 0 0 20px rgba(96, 165, 250, 0.4), 0 2px 6px rgba(0, 0, 0, 0.9)',
+                  filter: cluster.level === 'major'
+                    ? 'drop-shadow(0 0 8px rgba(139, 92, 246, 0.4))'
+                    : 'drop-shadow(0 0 6px rgba(96, 165, 250, 0.4))',
+                  marginBottom: cluster.level === 'major' ? '4px' : '6px'
+                }}
+              >
+                {cluster.summary.theme}
+              </h3>
+              {/* Only show description for sub-clusters */}
+              {cluster.level === 'sub' && (
+                <p
+                  className="text-center italic max-w-xs"
+                  style={{
+                    fontSize: '10px',
+                    color: 'rgba(226, 232, 240, 0.95)',
+                    textShadow: '0 1px 4px rgba(0, 0, 0, 0.95)',
+                    lineHeight: '1.4'
+                  }}
+                >
+                  {cluster.summary.description}
+                </p>
+              )}
+              <p
+                className="text-center"
+                style={{
+                  fontSize: '9px',
+                  color: cluster.level === 'major' ? 'rgba(167, 139, 250, 0.75)' : 'rgba(147, 197, 253, 0.75)',
+                  textShadow: '0 1px 3px rgba(0, 0, 0, 0.9)',
+                  letterSpacing: '0.05em',
+                  marginTop: cluster.level === 'major' ? '2px' : '4px'
+                }}
+              >
+                {cluster.level === 'major'
+                  ? `${clusterSize} thoughts`
+                  : `${clusterSize} thoughts`
+                }
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    });
+
+  // Memoize top 3 connections calculation
+  const top3Connections = useMemo(() => {
+    if (!activeNodeId || !activeNode) return [];
+
+    const connectionWeights: Array<{ nodeId: string, weight: number }> = [];
+
+    thoughts.forEach(node => {
+      if (node.id === activeNodeId) return; // Skip the active node itself
+
+      // Check both directions for connections
+      const weight = node.connections[activeNodeId] ||
+                     activeNode.connections[node.id] || 0;
+
+      if (weight > 0) {
+        connectionWeights.push({ nodeId: node.id, weight });
+      }
+    });
+
+    // Sort by weight descending and take top 3
+    return connectionWeights
+      .sort((a, b) => b.weight - a.weight)
+      .slice(0, 3)
+      .map(c => c.nodeId);
+  }, [activeNodeId, activeNode, thoughts]);
+
   return (
     <div
       ref={containerRef}
@@ -260,75 +444,14 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
     >
       <canvas ref={canvasRef} width={dimensions.width} height={dimensions.height} className="absolute inset-0 pointer-events-none z-0" />
 
-      {/* Cluster Theme Overlays */}
+      {/* Cluster Theme Overlays - Nebula Style (Memoized) */}
       <div className="absolute inset-0 pointer-events-none z-5">
-        {clusters.map((cluster) => {
-          if (!cluster.summary) return null;
-
-          const { x, y } = worldToScreen(cluster.centerX, cluster.centerY);
-
-          // Show cluster themes more prominently when zoomed out
-          const opacity = viewState.zoom < 0.7 ? 0.9 : viewState.zoom < 1.0 ? 0.6 : 0.3;
-          const scale = viewState.zoom < 0.7 ? 1.2 : 1.0;
-
-          return (
-            <div
-              key={cluster.id}
-              className="absolute"
-              style={{
-                left: x,
-                top: y,
-                transform: `translate(-50%, -50%) scale(${scale})`,
-                opacity,
-                transition: 'opacity 0.3s ease-out, transform 0.3s ease-out'
-              }}
-            >
-              <div
-                className="px-6 py-3 rounded-lg backdrop-blur-md"
-                style={{
-                  background: 'rgba(139, 92, 246, 0.15)',
-                  border: '1px solid rgba(139, 92, 246, 0.3)',
-                  boxShadow: '0 0 20px rgba(139, 92, 246, 0.2)'
-                }}
-              >
-                <h3 className="text-violet-300 font-semibold text-sm uppercase tracking-wide mb-1">
-                  {cluster.summary.theme}
-                </h3>
-                <p className="text-white/70 text-xs max-w-xs">
-                  {cluster.summary.description}
-                </p>
-              </div>
-            </div>
-          );
-        })}
+        {clusterElements}
       </div>
 
       {/* DOM Elements Layer */}
       <div className="absolute inset-0 pointer-events-none z-10">
         {(() => {
-          // Calculate top 3 strongest connections
-          let top3Connections: string[] = [];
-          if (activeNodeId && activeNode) {
-            const connectionWeights: Array<{ nodeId: string, weight: number }> = [];
-
-            thoughts.forEach(node => {
-              if (node.id === activeNodeId) return; // Skip the active node itself
-
-              // Check both directions for connections
-              const weight = node.connections[activeNodeId] ||
-                             activeNode.connections[node.id] || 0;
-
-              if (weight > 0) {
-                connectionWeights.push({ nodeId: node.id, weight });
-              }
-            });
-
-            // Sort by weight descending and take top 3
-            top3Connections = connectionWeights
-              .sort((a, b) => b.weight - a.weight)
-              .slice(0, 3)
-              .map(c => c.nodeId);
-          }
 
           return thoughts.map((node) => {
             // Calculate connection strength to active node
@@ -346,6 +469,30 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
             const isDirectlyConnected = connectionWeight > 0;
             const isTop3Connected = top3Connections.includes(node.id);
             const isDimmed = activeNodeId && !isDirectlyConnected;
+
+            // Strict 3-layer node visibility
+            // Layer 1 (zoom < 0.7): Nodes BARELY visible (hint)
+            // Layer 2 (zoom 0.7-1.2): Nodes faded, NOT interactable
+            // Layer 3 (zoom >= 1.2): Nodes full visibility and interactable
+            let nodeOpacity = 0;
+            let isNodeInteractable = false;
+
+            if (viewState.zoom < 0.7) {
+              // Layer 1: Very subtle hint (8% opacity, not interactable)
+              nodeOpacity = 0.08;
+              isNodeInteractable = false;
+            } else if (viewState.zoom < 1.2) {
+              // Layer 2: Visible but faded and not interactable
+              nodeOpacity = 0.2;
+              isNodeInteractable = false;
+            } else {
+              // Layer 3: Full visibility and interactable
+              nodeOpacity = 1.0;
+              isNodeInteractable = true;
+            }
+
+            const finalNodeOpacity = isDimmed ? 0.1 : nodeOpacity;
+
           const { x, y } = worldToScreen(node.x, node.y);
 
           // Calculate average connection strength for border intensity
@@ -357,14 +504,15 @@ export const GalaxyCanvas: React.FC<GalaxyCanvasProps> = ({
           return (
             <div
               key={node.id}
-              className="absolute pointer-events-auto"
+              className="absolute"
               style={{
                 left: x,
                 top: y,
                 transform: 'translate(-50%, -50%)',
-                opacity: isDimmed ? 0.1 : 1,
+                opacity: finalNodeOpacity,
                 transition: 'opacity 0.4s ease-out',
-                zIndex: isDirectlyConnected ? 100 : 1
+                zIndex: isDirectlyConnected ? 100 : 1,
+                pointerEvents: isNodeInteractable ? 'auto' : 'none'
               }}
             >
               <div

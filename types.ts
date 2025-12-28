@@ -41,6 +41,9 @@ export interface Cluster {
   summary: GroupSummary | null;
   centerX: number;
   centerY: number;
+  level: 'major' | 'sub'; // Hierarchy level
+  parentClusterId?: string; // For sub-clusters, references parent major cluster
+  subClusterIds?: string[]; // For major clusters, list of child sub-cluster IDs
 }
 
 export interface ViewState {

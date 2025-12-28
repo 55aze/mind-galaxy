@@ -77,116 +77,211 @@ export const DIAMETER_MULTIPLIER = {
     MAX: 3.0   // Weak connections (0.3-0.4) → far apart (120px)
 };
 
-// Start with 10 varied fleeting thoughts (2D layout with weighted connections)
-export const INITIAL_THOUGHTS: ThoughtNode[] = [
-    {
-        id: "1",
-        content: "I need to call mom this weekend",
-        x: 0, y: 0,
-        vx: 0, vy: 0,
-        mass: 1,
-        color: "#e2e8f0",
-        gradient: "linear-gradient(135deg, #e2e8f0, #e2e8f0)",
-        connections: { "2": 0.4, "6": 0.9 }, // Weak to creativity, strong to nostalgia
-        createdAt: Date.now() - 9000
-    },
-    {
-        id: "2",
-        content: "Why do I always feel more creative at night?",
-        x: 90, y: -60,
-        vx: 0, vy: 0,
-        mass: 1,
-        color: "#cbd5e1",
-        gradient: "linear-gradient(135deg, #cbd5e1, #cbd5e1)",
-        connections: { "1": 0.4, "4": 0.85, "5": 0.75 }, // Strong to music/aesthetic
-        createdAt: Date.now() - 8000
-    },
-    {
-        id: "3",
-        content: "Coffee tastes better when you make it slowly",
-        x: -100, y: 80,
-        vx: 0, vy: 0,
-        mass: 1,
-        color: "#f1f5f9",
-        gradient: "linear-gradient(135deg, #f1f5f9, #f1f5f9)",
-        connections: { "5": 0.7 }, // Moderate to aesthetic observation
-        createdAt: Date.now() - 7000
-    },
-    {
-        id: "4",
-        content: "Should I learn guitar or stick with piano?",
-        x: -80, y: 160,
-        vx: 0, vy: 0,
-        mass: 1,
-        color: "#e0f2fe",
-        gradient: "linear-gradient(135deg, #e0f2fe, #e0f2fe)",
-        connections: { "2": 0.85, "5": 0.65 }, // Strong to creativity
-        createdAt: Date.now() - 6000
-    },
-    {
-        id: "5",
-        content: "The way light hits the trees in autumn is magical",
-        x: 60, y: 100,
-        vx: 0, vy: 0,
-        mass: 1,
-        color: "#f0f9ff",
-        gradient: "linear-gradient(135deg, #f0f9ff, #f0f9ff)",
-        connections: { "2": 0.75, "3": 0.7, "4": 0.65, "9": 0.95 }, // Hub of aesthetic cluster
-        createdAt: Date.now() - 5000
-    },
-    {
-        id: "6",
-        content: "I wonder if my old friends from college still think about me",
-        x: 120, y: -120,
-        vx: 0, vy: 0,
-        mass: 1,
-        color: "#e2e8f0",
-        gradient: "linear-gradient(135deg, #e2e8f0, #e2e8f0)",
-        connections: { "1": 0.9, "9": 0.85, "10": 0.5 }, // Strong nostalgia cluster
-        createdAt: Date.now() - 4000
-    },
-    {
-        id: "7",
-        content: "Need to fix that leaky faucet before it gets worse",
-        x: -140, y: -40,
-        vx: 0, vy: 0,
-        mass: 1,
-        color: "#cbd5e1",
-        gradient: "linear-gradient(135deg, #cbd5e1, #cbd5e1)",
-        connections: { "8": 0.45 }, // Weak to existential thought
-        createdAt: Date.now() - 3000
-    },
-    {
-        id: "8",
-        content: "What if I just quit and traveled for a year?",
-        x: -170, y: -100,
-        vx: 0, vy: 0,
-        mass: 1,
-        color: "#f1f5f9",
-        gradient: "linear-gradient(135deg, #f1f5f9, #f1f5f9)",
-        connections: { "7": 0.45, "10": 0.8 }, // Strong to meta-thinking
-        createdAt: Date.now() - 2000
-    },
-    {
-        id: "9",
-        content: "The smell of rain always reminds me of childhood summers",
-        x: 150, y: 140,
-        vx: 0, vy: 0,
-        mass: 1,
-        color: "#e0f2fe",
-        gradient: "linear-gradient(135deg, #e0f2fe, #e0f2fe)",
-        connections: { "5": 0.95, "6": 0.85 }, // Strong sensory+nostalgia cluster
-        createdAt: Date.now() - 1000
-    },
-    {
-        id: "10",
-        content: "Am I procrastinating or just resting? There's a difference",
-        x: 40, y: -180,
-        vx: 0, vy: 0,
-        mass: 1,
-        color: "#f0f9ff",
-        gradient: "linear-gradient(135deg, #f0f9ff, #f0f9ff)",
-        connections: { "6": 0.5, "8": 0.8 }, // Meta-thinking cluster
-        createdAt: Date.now()
-    }
-];
+// Helper function to generate diverse thought nodes
+const generateThoughts = (): ThoughtNode[] => {
+    const colors = ["#e2e8f0", "#cbd5e1", "#f1f5f9", "#e0f2fe", "#f0f9ff"];
+    const getColor = () => colors[Math.floor(Math.random() * colors.length)];
+    const getGradient = (color: string) => `linear-gradient(135deg, ${color}, ${color})`;
+
+    // Diverse thought content organized by theme clusters
+    const thoughtsByCluster = [
+        // AI & Technology Cluster (0-9)
+        [
+            "Will AI replace my job or augment it?",
+            "ChatGPT feels more human than some people I know",
+            "Need to learn Python before it's too late",
+            "The singularity might happen in our lifetime",
+            "Why is debugging so satisfying when it finally works?",
+            "Open source is humanity's greatest collaboration",
+            "Should I be worried about my digital privacy?",
+            "Quantum computing sounds like magic",
+            "My entire life is backed up in the cloud",
+            "Code is poetry for machines"
+        ],
+        // Philosophy & Meaning Cluster (10-19)
+        [
+            "What if this is all a simulation?",
+            "Do we have free will or is everything predetermined?",
+            "The meaning of life keeps changing as I age",
+            "Existential dread hits different at 3am",
+            "Maybe happiness isn't the goal, growth is",
+            "We're all just atoms that learned to think about atoms",
+            "Death gives life meaning, not the other way around",
+            "Am I the same person I was 10 years ago?",
+            "Consciousness might be the universe experiencing itself",
+            "Every decision creates a parallel universe I'll never see"
+        ],
+        // Creativity & Art Cluster (20-29)
+        [
+            "Writer's block is just fear in disguise",
+            "The best ideas come when I'm not trying",
+            "Music is mathematics made emotional",
+            "Every artist steals, the great ones just hide it better",
+            "Imperfection makes art more human",
+            "I want to create something that outlives me",
+            "The blank canvas is both terrifying and thrilling",
+            "Photography captures moments we'd otherwise forget",
+            "Dancing is the body's way of speaking",
+            "Abstract art makes me feel things I can't explain"
+        ],
+        // Nature & Environment Cluster (30-39)
+        [
+            "Climate change keeps me up at night",
+            "There's something healing about being near water",
+            "The stars remind me how small my problems are",
+            "Trees have been here longer than human civilization",
+            "Ocean waves follow the same patterns as brain waves",
+            "Every sunset is proof that endings can be beautiful",
+            "Nature doesn't hurry yet everything gets accomplished",
+            "The smell of petrichor is better than any perfume",
+            "Mountains make me feel grounded and free simultaneously",
+            "Bees are dying and nobody seems to care enough"
+        ],
+        // Relationships & Social Cluster (40-49)
+        [
+            "I need to be better at keeping in touch",
+            "Loneliness and solitude are completely different things",
+            "My parents are aging faster than I want to admit",
+            "Real friendship is rare and precious",
+            "Social media made us connected but more alone",
+            "Love is choosing someone every single day",
+            "I miss the friends I had before we got busy with life",
+            "Empathy is a superpower we don't teach enough",
+            "Family isn't always blood",
+            "Quality time beats expensive gifts every time"
+        ],
+        // Health & Wellness Cluster (50-59)
+        [
+            "I should drink more water",
+            "Sleep is not optional, it's essential",
+            "Mental health is just as important as physical health",
+            "Exercise is the closest thing we have to a miracle drug",
+            "Meditation is hard because our minds aren't used to stillness",
+            "Nutrition science changes every decade",
+            "Burnout is real and I might be experiencing it",
+            "Walking in nature is free therapy",
+            "Breathwork can literally change your nervous system",
+            "Rest is productive, not lazy"
+        ],
+        // Career & Work Cluster (60-69)
+        [
+            "Imposter syndrome never really goes away",
+            "Should I take the safe path or follow my passion?",
+            "My dream job might not even exist yet",
+            "Work-life balance is a myth, it's work-life integration",
+            "Networking feels fake but it works",
+            "Skills are more valuable than degrees now",
+            "Remote work changed everything",
+            "Automation will eliminate jobs but create new ones",
+            "The hustle culture is toxic",
+            "Mentorship accelerates growth exponentially"
+        ],
+        // Travel & Adventure Cluster (70-79)
+        [
+            "I want to visit Japan during cherry blossom season",
+            "Solo travel is the best way to find yourself",
+            "Every country I visit expands my perspective",
+            "Travel is the only thing you buy that makes you richer",
+            "I want to hike the Inca Trail before I'm too old",
+            "Getting lost in a new city is scary and exciting",
+            "Food is the best way to understand a culture",
+            "I collect experiences, not things",
+            "The Northern Lights are on my bucket list",
+            "Traveling alone means eating dinner at weird hours"
+        ],
+        // Food & Cooking Cluster (80-89)
+        [
+            "Homemade pasta tastes like love and effort",
+            "Cooking is chemistry you can eat",
+            "The best meals are shared with good company",
+            "Fermentation is controlled rot that tastes amazing",
+            "I want to master sourdough bread",
+            "Spices tell the story of human exploration",
+            "Meal prep on Sunday saves my weeknight sanity",
+            "Coffee is a ritual, not just caffeine",
+            "Chocolate is proof that God loves us",
+            "Farmers markets connect me to my food source"
+        ],
+        // Science & Learning Cluster (90-99)
+        [
+            "The universe is expanding faster than we thought",
+            "Neuroplasticity means I can change at any age",
+            "CRISPR will revolutionize medicine",
+            "Dark matter is 85% of the universe and we barely understand it",
+            "Learning a new language rewires your brain",
+            "The human body is a universe of microorganisms",
+            "Space is silent because there's no medium for sound",
+            "Evolution is still happening in humans",
+            "Math is the language of the universe",
+            "We've only explored 5% of the ocean"
+        ]
+    ];
+
+    const thoughts: ThoughtNode[] = [];
+    let id = 1;
+
+    // Generate nodes from clusters
+    thoughtsByCluster.forEach((cluster, clusterIdx) => {
+        // Position clusters in a circular arrangement
+        const angle = (clusterIdx / thoughtsByCluster.length) * Math.PI * 2;
+        const clusterRadius = 400 + Math.random() * 200;
+        const centerX = Math.cos(angle) * clusterRadius;
+        const centerY = Math.sin(angle) * clusterRadius;
+
+        cluster.forEach((content, nodeIdx) => {
+            const nodeId = String(id++);
+            const color = getColor();
+
+            // Position within cluster (tight grouping)
+            const localAngle = (nodeIdx / cluster.length) * Math.PI * 2;
+            const localRadius = 50 + Math.random() * 100;
+            const x = centerX + Math.cos(localAngle) * localRadius;
+            const y = centerY + Math.sin(localAngle) * localRadius;
+
+            thoughts.push({
+                id: nodeId,
+                content,
+                x, y,
+                vx: 0, vy: 0,
+                mass: 1,
+                color,
+                gradient: getGradient(color),
+                connections: {}, // Will be filled below
+                createdAt: Date.now() - (100 - parseInt(nodeId)) * 1000
+            });
+        });
+    });
+
+    // Add connections within and across clusters
+    thoughts.forEach((thought, idx) => {
+        const clusterIdx = Math.floor(idx / 10);
+        const clusterStart = clusterIdx * 10;
+        const clusterEnd = Math.min(clusterStart + 10, thoughts.length);
+
+        // Strong intra-cluster connections (0.6-0.95)
+        for (let i = clusterStart; i < clusterEnd; i++) {
+            if (i === idx) continue;
+            if (Math.random() < 0.4) { // 40% chance of connection within cluster
+                const weight = 0.6 + Math.random() * 0.35;
+                thought.connections[thoughts[i].id] = weight;
+            }
+        }
+
+        // Weak inter-cluster connections (0.3-0.5)
+        const numInterConnections = Math.floor(Math.random() * 3);
+        for (let i = 0; i < numInterConnections; i++) {
+            let targetIdx = Math.floor(Math.random() * thoughts.length);
+            // Ensure it's from a different cluster
+            const targetCluster = Math.floor(targetIdx / 10);
+            if (targetCluster !== clusterIdx && targetIdx !== idx) {
+                const weight = 0.3 + Math.random() * 0.2;
+                thought.connections[thoughts[targetIdx].id] = weight;
+            }
+        }
+    });
+
+    return thoughts;
+};
+
+// 100 diverse thoughts with rich clustering patterns
+export const INITIAL_THOUGHTS: ThoughtNode[] = generateThoughts();

@@ -40,6 +40,8 @@ export const detectClusters = (
   };
 
   // Find all clusters
+  const orphanNodes: string[] = [];
+
   for (const thought of thoughts) {
     if (!visited.has(thought.id)) {
       const cluster = findCluster(thought.id);
@@ -47,11 +49,123 @@ export const detectClusters = (
       // Only consider groups of 2+ nodes as clusters
       if (cluster.length >= 2) {
         clusters.push(cluster);
+      } else if (cluster.length === 1) {
+        // Collect orphan nodes (single nodes with no strong connections)
+        orphanNodes.push(...cluster);
       }
     }
   }
 
+  // If there are orphans, group them into an "Uncategorized" cluster
+  if (orphanNodes.length > 0) {
+    clusters.push(orphanNodes);
+  }
+
   return clusters;
+};
+
+/**
+ * Groups sub-clusters into major clusters based on spatial proximity
+ * Ensures max 5 major clusters to avoid overwhelming the user
+ */
+export const groupIntoMetaClusters = (
+  subClusters: Cluster[],
+  maxMajorClusters: number = 5
+): { majorClusters: Cluster[], subClusters: Cluster[] } => {
+  if (subClusters.length === 0) return { majorClusters: [], subClusters: [] };
+  if (subClusters.length <= maxMajorClusters) {
+    // Few enough clusters - each becomes a major cluster
+    return {
+      majorClusters: subClusters.map((sc, i) => ({
+        ...sc,
+        id: `major-${i}`,
+        level: 'major' as const,
+        subClusterIds: [sc.id]
+      })),
+      subClusters: subClusters.map(sc => ({ ...sc, level: 'sub' as const, parentClusterId: `major-${subClusters.indexOf(sc)}` }))
+    };
+  }
+
+  // Use k-means-like clustering based on spatial proximity
+  const assigned = new Array(subClusters.length).fill(-1);
+  const majorClusterCenters: { x: number, y: number, subClusterIds: string[], nodeIds: string[] }[] = [];
+
+  // Initialize first k centers using k-means++ strategy
+  const firstIndex = Math.floor(Math.random() * subClusters.length);
+  majorClusterCenters.push({
+    x: subClusters[firstIndex].centerX,
+    y: subClusters[firstIndex].centerY,
+    subClusterIds: [],
+    nodeIds: []
+  });
+
+  // Pick remaining initial centers far from existing ones
+  for (let i = 1; i < maxMajorClusters; i++) {
+    let maxMinDist = -1;
+    let farthestIndex = 0;
+
+    for (let j = 0; j < subClusters.length; j++) {
+      const minDist = Math.min(...majorClusterCenters.map(center => {
+        const dx = subClusters[j].centerX - center.x;
+        const dy = subClusters[j].centerY - center.y;
+        return Math.sqrt(dx * dx + dy * dy);
+      }));
+
+      if (minDist > maxMinDist) {
+        maxMinDist = minDist;
+        farthestIndex = j;
+      }
+    }
+
+    majorClusterCenters.push({
+      x: subClusters[farthestIndex].centerX,
+      y: subClusters[farthestIndex].centerY,
+      subClusterIds: [],
+      nodeIds: []
+    });
+  }
+
+  // Assign each sub-cluster to nearest major cluster
+  for (let i = 0; i < subClusters.length; i++) {
+    const sc = subClusters[i];
+    let minDist = Infinity;
+    let closestMajor = 0;
+
+    for (let j = 0; j < majorClusterCenters.length; j++) {
+      const center = majorClusterCenters[j];
+      const dx = sc.centerX - center.x;
+      const dy = sc.centerY - center.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < minDist) {
+        minDist = dist;
+        closestMajor = j;
+      }
+    }
+
+    assigned[i] = closestMajor;
+    majorClusterCenters[closestMajor].subClusterIds.push(sc.id);
+    majorClusterCenters[closestMajor].nodeIds.push(...sc.nodeIds);
+  }
+
+  // Build final cluster structures
+  const majorClusters: Cluster[] = majorClusterCenters.map((center, i) => ({
+    id: `major-${i}`,
+    nodeIds: center.nodeIds,
+    summary: null, // Will be filled later
+    centerX: center.x,
+    centerY: center.y,
+    level: 'major' as const,
+    subClusterIds: center.subClusterIds
+  }));
+
+  const updatedSubClusters: Cluster[] = subClusters.map((sc, i) => ({
+    ...sc,
+    level: 'sub' as const,
+    parentClusterId: `major-${assigned[i]}`
+  }));
+
+  return { majorClusters, subClusters: updatedSubClusters };
 };
 
 /**
@@ -69,11 +183,12 @@ export const buildClusters = (
     const centerY = nodes.reduce((sum, n) => sum + n.y, 0) / nodes.length;
 
     return {
-      id: `cluster-${index}`,
+      id: `sub-${index}`,
       nodeIds,
       summary: null, // Will be filled by AI
       centerX,
-      centerY
+      centerY,
+      level: 'sub' as const // Start as sub-clusters
     };
   });
 };
